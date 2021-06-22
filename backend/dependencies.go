@@ -3,12 +3,12 @@ package backend
 import (
 	"context"
 
+	"github.com/VGLoic/go-del/ethshell"
+	"github.com/VGLoic/go-del/eventlog"
+	"github.com/VGLoic/go-del/ipfsshell"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/go-del/ethshell"
-	"github.com/go-del/eventlog"
-	"github.com/go-del/ipfsshell"
 )
 
 type EventLog interface {

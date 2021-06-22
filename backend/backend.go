@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-del/ethshell"
-	"github.com/go-del/eventlog"
-	"github.com/go-del/ipfsshell"
+	"github.com/VGLoic/go-del/ethshell"
+	"github.com/VGLoic/go-del/eventlog"
+	"github.com/VGLoic/go-del/ipfsshell"
 )
 
 type Backend struct {

@@ -3,9 +3,9 @@ package backend
 import (
 	"context"
 
-	"github.com/VGLoic/go-del/ethshell"
-	"github.com/VGLoic/go-del/eventlog"
-	"github.com/VGLoic/go-del/ipfsshell"
+	"github.com/VGLoic/godel/ethshell"
+	"github.com/VGLoic/godel/eventlog"
+	"github.com/VGLoic/godel/ipfsshell"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"net/rpc"
 
-	"github.com/VGLoic/go-del/backend"
-	"github.com/VGLoic/go-del/config"
-	"github.com/VGLoic/go-del/ethshell"
-	"github.com/VGLoic/go-del/eventlog"
-	"github.com/VGLoic/go-del/ipfsshell"
+	"github.com/VGLoic/godel/backend"
+	"github.com/VGLoic/godel/config"
+	"github.com/VGLoic/godel/ethshell"
+	"github.com/VGLoic/godel/eventlog"
+	"github.com/VGLoic/godel/ipfsshell"
 	"github.com/spf13/viper"
 )
 

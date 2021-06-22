@@ -20,7 +20,7 @@ profile.cov
 .idea
 
 #
-go-del
+godel
 
 # VS Code
 .vscode

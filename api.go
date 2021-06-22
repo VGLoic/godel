@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
-	"github.com/VGLoic/go-del/backend"
-	"github.com/VGLoic/go-del/eventlog"
+	"github.com/VGLoic/godel/backend"
+	"github.com/VGLoic/godel/eventlog"
 )
 
 type Api struct {

@@ -1,4 +1,4 @@
-module github.com/VGLoic/go-del
+module github.com/VGLoic/godel
 
 go 1.15
 

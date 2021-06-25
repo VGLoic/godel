@@ -183,6 +183,8 @@ func (s *Shell) deriveTransactionOpts(ctx context.Context) (*bind.TransactOpts, 
 	auth.Value = big.NewInt(0)
 	auth.GasLimit = uint64(300000)
 	auth.GasPrice = gasPrice
+	// Could be sent as nil, will be fixed in next release of geth --> see https://github.com/ethereum/go-ethereum/pull/23062
+	auth.Context = ctx
 
 	return auth, fromAddress, nil
 }

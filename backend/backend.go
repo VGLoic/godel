@@ -33,7 +33,8 @@ type PublishRequest struct {
 	NewAccounts []string
 }
 
-func (b *Backend) PublishEvent(ctx context.Context, publishRequest PublishRequest) (eventlog.Event, error) {
+func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, error) {
+	ctx, _ := context.WithCancel(context.Background())
 	businessEvent := ipfsshell.BusinessEvent{
 		Type:    publishRequest.Type,
 		Payload: publishRequest.Payload,

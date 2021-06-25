@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/rpc"
 
+	"github.com/VGLoic/godel/api"
 	"github.com/VGLoic/godel/backend"
 	"github.com/VGLoic/godel/config"
 	"github.com/VGLoic/godel/ethshell"
@@ -20,13 +20,11 @@ type Godel struct {
 }
 
 func NewGodelNode(ctx context.Context) (*Godel, error) {
-	fmt.Println("-- Load configuration --")
 	configErr := config.LoadConfig()
 	if configErr != nil {
 		return nil, configErr
 	}
 
-	fmt.Println("-- Connect to Database and migrate EventLog --")
 	eventLog, eventLogErr := eventlog.NewEventLog(eventlog.EventLogConfiguration{
 		PostgresHost:     viper.GetString("POSTGRES_HOST"),
 		PostgresUser:     viper.GetString("POSTGRES_USER"),
@@ -38,7 +36,6 @@ func NewGodelNode(ctx context.Context) (*Godel, error) {
 		return nil, eventLogErr
 	}
 
-	fmt.Println("-- Connect IPFS shell --")
 	ipfsShell, ipfsShellErr := ipfsshell.NewShell(ipfsshell.ShellConfiguration{
 		IpfsNodeUrl: viper.GetString("IPFS_DAEMON_URL"),
 	})
@@ -46,7 +43,6 @@ func NewGodelNode(ctx context.Context) (*Godel, error) {
 		return nil, ipfsShellErr
 	}
 
-	fmt.Println("-- Connect Eth shell --")
 	ethShell, ethShellErr := ethshell.NewShell(ethshell.ShellConfiguration{
 		EthNodeUrl:      viper.GetString("ETH_NODE_URL"),
 		ContractAddress: viper.GetString("CONTRACT_ADDRESS"),
@@ -78,7 +74,7 @@ func (g *Godel) Start(ctx context.Context) error {
 }
 
 func (g *Godel) ServeApi() error {
-	api := NewApi(g.b)
+	api := api.NewApi(g.b)
 	rpc.Register(api)
 	rpc.HandleHTTP()
 	l, e := net.Listen("tcp", ":1234")

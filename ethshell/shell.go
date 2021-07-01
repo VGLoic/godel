@@ -4,21 +4,32 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"math/big"
-	"strings"
 
+	"github.com/VGLoic/godel/ethshell/contract"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/google/uuid"
 )
+
+type EventLogEvent struct {
+	TopicId     string
+	Cid         string
+	NewAccounts []string
+	Emitter     string
+	Timestamp   uint64
+	BlockNumber uint64
+	Id          uuid.UUID
+}
 
 type Shell struct {
 	ethClient        *ethclient.Client
-	contractInstance *Del
+	contractInstance EventLogContract
 	privateKey       string
 	contractAddress  string
 }
@@ -36,7 +47,7 @@ func NewShell(shellConfiguration ShellConfiguration) (*Shell, error) {
 	}
 
 	address := common.HexToAddress(shellConfiguration.ContractAddress)
-	contractInstance, contractErr := NewDel(address, ethClient)
+	contractInstance, contractErr := contract.NewContract(address, ethClient)
 	if contractErr != nil {
 		return nil, contractErr
 	}
@@ -87,21 +98,42 @@ func (s *Shell) GetTopics(ctx context.Context) ([]string, error) {
 }
 
 func (s *Shell) GetEvents(topic string, fromBlock uint64) ([]EventLogEvent, error) {
-	events, eventsErr := s.contractInstance.GetEvents(nil, topic)
+	events, eventsErr := s.contractInstance.GetEvents(nil, topic, big.NewInt(int64(fromBlock)))
 	if eventsErr != nil {
 		return nil, eventsErr
 	}
-
-	filteredEvents := []EventLogEvent{}
-	for _, event := range events {
-		if event.BlockNumber.Uint64() >= fromBlock {
-			filteredEvents = append(filteredEvents, event)
+	formattedEvents := []EventLogEvent{}
+	for _, e := range events {
+		newAccounts := []string{}
+		for _, address := range e.NewAccounts {
+			newAccounts = append(newAccounts, address.String())
 		}
+		id, parseErr := uuid.ParseBytes(e.Id)
+		// TODO: Do something about this
+		if parseErr != nil {
+			fmt.Println("An event with wrong ID format has been detected! I rejected it!")
+			return []EventLogEvent{}, parseErr
+		}
+		formattedEvent := EventLogEvent{
+			TopicId:     topic,
+			Cid:         e.Cid,
+			NewAccounts: newAccounts,
+			Timestamp:   e.Timestamp.Uint64(),
+			BlockNumber: e.BlockNumber.Uint64(),
+			Id:          id,
+		}
+		formattedEvents = append(formattedEvents, formattedEvent)
 	}
-	return filteredEvents, nil
+	return formattedEvents, nil
 }
 
-func (s *Shell) PublishEvent(ctx context.Context, topic string, cid string, newAccounts []string) (*types.Transaction, common.Address, error) {
+func (s *Shell) PublishEvent(
+	ctx context.Context,
+	topic string,
+	id uuid.UUID,
+	cid string,
+	newAccounts []string,
+) (*types.Transaction, common.Address, error) {
 
 	txOptions, from, txOptionsErr := s.deriveTransactionOpts(ctx)
 	if txOptionsErr != nil {
@@ -112,7 +144,7 @@ func (s *Shell) PublishEvent(ctx context.Context, topic string, cid string, newA
 	for _, newAccount := range newAccounts {
 		newAccountAddresses = append(newAccountAddresses, common.HexToAddress(newAccount))
 	}
-	tx, txErr := s.contractInstance.PublishEvent(txOptions, topic, cid, newAccountAddresses)
+	tx, txErr := s.contractInstance.PublishEvent(txOptions, topic, []byte(id.String()), cid, newAccountAddresses)
 	if txErr != nil {
 		return nil, common.Address{}, txErr
 	}
@@ -120,29 +152,44 @@ func (s *Shell) PublishEvent(ctx context.Context, topic string, cid string, newA
 	return tx, from, nil
 }
 
-func UnpackLog(log types.Log) (string, string, []string, error) {
-	contractAbi, abiErr := abi.JSON(strings.NewReader(string(DelABI)))
-	if abiErr != nil {
-		return "", "", []string{}, abiErr
-	}
-
-	unpacked, unpackErr := contractAbi.Unpack("EventPublished", log.Data)
-
+func (s *Shell) UnpackLog(ctx context.Context, log types.Log) (EventLogEvent, error) {
+	rawEvent, unpackErr := contract.UnpackLog(log)
 	if unpackErr != nil {
-		return "", "", []string{}, unpackErr
-	}
-	if len(unpacked) < 3 {
-		return "", "", []string{}, errors.New("Oh no, the unpacked event must have three elements!")
-	}
-	topic := unpacked[0].(string)
-	cid := unpacked[1].(string)
-	newAddresses := unpacked[2].([]common.Address)
-	newAccounts := []string{}
-	for _, newAddress := range newAddresses {
-		newAccounts = append(newAccounts, newAddress.String())
+		return EventLogEvent{}, unpackErr
 	}
 
-	return topic, cid, newAccounts, nil
+	emitter, getEmitterErr := s.GetTxSender(ctx, log.TxHash)
+	if getEmitterErr != nil {
+		return EventLogEvent{}, getEmitterErr
+	}
+	header, blockHeaderErr := s.ethClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	if blockHeaderErr != nil {
+		return EventLogEvent{}, blockHeaderErr
+	}
+
+	newAccounts := []string{}
+	for _, address := range rawEvent.NewAccounts {
+		newAccounts = append(newAccounts, address.String())
+	}
+
+	id, parseErr := uuid.ParseBytes(rawEvent.Id)
+	// TODO: Do something about this
+	if parseErr != nil {
+		fmt.Println("An event with wrong ID format has been detected! I rejected it :(")
+		return EventLogEvent{}, parseErr
+	}
+
+	event := EventLogEvent{
+		TopicId:     rawEvent.TopicId,
+		Cid:         rawEvent.Cid,
+		NewAccounts: newAccounts,
+		Emitter:     emitter.String(),
+		Timestamp:   header.Time,
+		BlockNumber: header.Number.Uint64(),
+		Id:          id,
+	}
+
+	return event, nil
 }
 
 func deriveFromAddress(privateKey *ecdsa.PrivateKey) (common.Address, error) {
@@ -189,23 +236,23 @@ func (s *Shell) deriveTransactionOpts(ctx context.Context) (*bind.TransactOpts, 
 	return auth, fromAddress, nil
 }
 
-func (s *Shell) GetTxSender(ctx context.Context, txHash common.Hash) (string, error) {
+func (s *Shell) GetTxSender(ctx context.Context, txHash common.Hash) (common.Address, error) {
 	tx, _, txErr := s.ethClient.TransactionByHash(ctx, txHash)
 	if txErr != nil {
-		return "", txErr
+		return common.Address{}, txErr
 	}
 
 	chainID, chainIDErr := s.ethClient.NetworkID(ctx)
 	if chainIDErr != nil {
-		return "", chainIDErr
+		return common.Address{}, chainIDErr
 	}
 
 	msg, msgErr := tx.AsMessage(types.NewEIP155Signer(chainID), nil)
 	if msgErr != nil {
-		return "", msgErr
+		return common.Address{}, msgErr
 	}
 
-	return msg.From().String(), nil
+	return msg.From(), nil
 }
 
 func (s *Shell) HeaderByNumber(ctx context.Context, blockNumber uint64) (*types.Header, error) {

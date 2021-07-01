@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/VGLoic/godel/ethshell"
 	"github.com/VGLoic/godel/eventlog"
 	"github.com/VGLoic/godel/ipfsshell"
+	"github.com/google/uuid"
 )
 
 type Backend struct {
@@ -34,7 +34,6 @@ type PublishRequest struct {
 }
 
 func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, error) {
-	ctx, _ := context.WithCancel(context.Background())
 	businessEvent := ipfsshell.BusinessEvent{
 		Type:    publishRequest.Type,
 		Payload: publishRequest.Payload,
@@ -45,12 +44,15 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		return eventlog.Event{}, ipfsPublishErr
 	}
 
-	tx, from, txErr := b.eth.PublishEvent(ctx, publishRequest.Topic, cid, publishRequest.NewAccounts)
+	id := uuid.New()
+
+	_, from, txErr := b.eth.PublishEvent(context.Background(), publishRequest.Topic, id, cid, publishRequest.NewAccounts)
 	if txErr != nil {
 		return eventlog.Event{}, txErr
 	}
 
 	event := eventlog.Event{
+		ID:          id,
 		Type:        businessEvent.Type,
 		Payload:     businessEvent.Payload,
 		Version:     businessEvent.Version,
@@ -60,7 +62,6 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		NewAccounts: publishRequest.NewAccounts,
 		Timestamp:   0,
 		BlockNumber: 0,
-		TxHash:      tx.Hash().String(),
 	}
 	insertedEvent, insertionErr := b.eventLog.Insert(event)
 	if insertionErr != nil {
@@ -121,20 +122,17 @@ func (b *Backend) getEvents(topic string, fromBlock uint64) ([]eventlog.Event, e
 		if businessEventErr != nil {
 			return nil, businessEventErr
 		}
-		newAccounts := []string{}
-		for _, newAccount := range event.NewAccounts {
-			newAccounts = append(newAccounts, newAccount.String())
-		}
 		completedEvent := eventlog.Event{
+			ID:          event.Id,
 			Type:        businessEvent.Type,
 			Payload:     businessEvent.Payload,
 			Version:     businessEvent.Version,
 			Topic:       topic,
 			Cid:         event.Cid,
-			Emitter:     event.Emitter.String(),
-			NewAccounts: newAccounts,
-			Timestamp:   event.Timestamp.Uint64(),
-			BlockNumber: event.BlockNumber.Uint64(),
+			Emitter:     event.Emitter,
+			NewAccounts: event.NewAccounts,
+			Timestamp:   event.Timestamp,
+			BlockNumber: event.BlockNumber,
 		}
 		completedEvents = append(completedEvents, completedEvent)
 	}
@@ -159,52 +157,42 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 		for {
 			select {
 			case log := <-logs:
-				topic, cid, newAccounts, unpackingErr := ethshell.UnpackLog(log)
+				rawEvent, unpackingErr := b.eth.UnpackLog(ctx, log)
 				if unpackingErr != nil {
 					fmt.Println(fmt.Errorf("Error in unpacking of the log: %s \n", unpackingErr))
 					break
 				}
-				emitter, getEmitterErr := b.eth.GetTxSender(ctx, log.TxHash)
-				if getEmitterErr != nil {
-					fmt.Println(fmt.Errorf("Error in getting the tx sender: %s \n", getEmitterErr))
-					break
-				}
-				blockHeader, blockHeaderErr := b.eth.HeaderByNumber(ctx, log.BlockNumber)
-				if blockHeaderErr != nil {
-					fmt.Println(fmt.Errorf("Error in getting the block header: %s \n", blockHeaderErr))
-					break
-				}
 
-				if emitter == b.accountAddress {
-					_, confirmationErr := b.eventLog.Confirm(log.TxHash, log.BlockNumber, blockHeader.Time)
+				if rawEvent.Emitter == b.accountAddress {
+					_, confirmationErr := b.eventLog.Confirm(rawEvent.Id, rawEvent.BlockNumber, rawEvent.Timestamp)
 					if confirmationErr != nil {
 						fmt.Println(fmt.Errorf("Error in confirming event: %s \n", confirmationErr))
 						break
 					}
 				} else {
 					// If topic is known, add event
-					lastBlockNumber, lastBlockErr := b.eventLog.FindLastSynchronisedBlockNumber(topic)
+					lastBlockNumber, lastBlockErr := b.eventLog.FindLastSynchronisedBlockNumber(rawEvent.TopicId)
 					if lastBlockErr != nil {
 						fmt.Println(fmt.Errorf("Error in finding last synchronised block: %s \n", lastBlockErr))
 						break
 					}
 					if isTopicKnown := lastBlockNumber > 0; isTopicKnown {
-						businessEvent, retrieveFromIpfsErr := b.ipfs.GetBusinessEvent(cid)
+						businessEvent, retrieveFromIpfsErr := b.ipfs.GetBusinessEvent(rawEvent.Cid)
 						if retrieveFromIpfsErr != nil {
 							fmt.Println(fmt.Errorf("Error in retrieving the informations from IPFS: %s \n", retrieveFromIpfsErr))
 							break
 						}
 						event := eventlog.Event{
+							ID:          rawEvent.Id,
 							Type:        businessEvent.Type,
 							Payload:     businessEvent.Payload,
 							Version:     businessEvent.Version,
-							Topic:       topic,
-							Cid:         cid,
-							Emitter:     emitter,
-							NewAccounts: newAccounts,
-							Timestamp:   blockHeader.Time,
-							BlockNumber: log.BlockNumber,
-							TxHash:      log.TxHash.String(),
+							Topic:       rawEvent.TopicId,
+							Cid:         rawEvent.Cid,
+							Emitter:     rawEvent.Emitter,
+							NewAccounts: rawEvent.NewAccounts,
+							Timestamp:   rawEvent.Timestamp,
+							BlockNumber: rawEvent.BlockNumber,
 						}
 						_, insertionErr := b.eventLog.Insert(event)
 						if insertionErr != nil {
@@ -212,8 +200,8 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 							break
 						}
 					} else {
-						if isMemberAdded := contains(newAccounts, b.accountAddress); isMemberAdded {
-							syncErr := b.synchroniseTopic(ctx, topic)
+						if isMemberAdded := contains(rawEvent.NewAccounts, b.accountAddress); isMemberAdded {
+							syncErr := b.synchroniseTopic(ctx, rawEvent.TopicId)
 							if syncErr != nil {
 								fmt.Println(fmt.Errorf("Error in synchronising topic: %s \n", syncErr))
 								break

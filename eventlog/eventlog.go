@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -99,16 +99,16 @@ func (e *EventLog) Insert(event Event) (Event, error) {
 	return event, nil
 }
 
-func (e *EventLog) Confirm(txHash common.Hash, blockNumber uint64, timestamp uint64) (Event, error) {
+func (e *EventLog) Confirm(id uuid.UUID, blockNumber uint64, timestamp uint64) (Event, error) {
 	existingEvent := Event{}
-	getResult := e.db.Where("tx_hash = ?", txHash.String()).Take(&existingEvent)
+	getResult := e.db.Where("id = ?", id).Take(&existingEvent)
 	if getResult.Error != nil {
 		return Event{}, getResult.Error
 	}
 	existingEvent.Timestamp = timestamp
 	existingEvent.BlockNumber = blockNumber
 	e.db.Save(&existingEvent)
-	fmt.Printf("Confirmation of event with TxHash %v is made\n", txHash)
+	fmt.Printf("Confirmation of event with id %v is made\n", id.String())
 	return existingEvent, nil
 }
 

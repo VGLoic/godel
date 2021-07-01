@@ -1,12 +1,15 @@
 package eventlog
 
 import (
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
 type Event struct {
 	gorm.Model
+
+	ID uuid.UUID `gorm:"primaryKey"`
 
 	Type string `json:"type"`
 
@@ -25,8 +28,6 @@ type Event struct {
 	Timestamp uint64 `json:"timestamp"`
 
 	BlockNumber uint64 `json:"blockNumber"`
-
-	TxHash string `json:"txHash"`
 }
 
 func AutoMigrate(db *gorm.DB) {

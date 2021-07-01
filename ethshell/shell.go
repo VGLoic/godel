@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/VGLoic/godel/ethshell/contract"
@@ -14,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/google/uuid"
 )
 
 type EventLogEvent struct {
@@ -24,7 +22,7 @@ type EventLogEvent struct {
 	Emitter     string
 	Timestamp   uint64
 	BlockNumber uint64
-	Id          uuid.UUID
+	TxHash      string
 }
 
 type Shell struct {
@@ -98,31 +96,26 @@ func (s *Shell) GetTopics(ctx context.Context) ([]string, error) {
 }
 
 func (s *Shell) GetEvents(topic string, fromBlock uint64) ([]EventLogEvent, error) {
-	events, eventsErr := s.contractInstance.GetEvents(nil, topic, big.NewInt(int64(fromBlock)))
+	events, eventsErr := s.contractInstance.GetEvents(nil, topic)
 	if eventsErr != nil {
 		return nil, eventsErr
 	}
 	formattedEvents := []EventLogEvent{}
 	for _, e := range events {
-		newAccounts := []string{}
-		for _, address := range e.NewAccounts {
-			newAccounts = append(newAccounts, address.String())
+		if e.BlockNumber.Uint64() >= fromBlock {
+			newAccounts := []string{}
+			for _, address := range e.NewAccounts {
+				newAccounts = append(newAccounts, address.String())
+			}
+			formattedEvent := EventLogEvent{
+				TopicId:     topic,
+				Cid:         e.Cid,
+				NewAccounts: newAccounts,
+				Timestamp:   e.Timestamp.Uint64(),
+				BlockNumber: e.BlockNumber.Uint64(),
+			}
+			formattedEvents = append(formattedEvents, formattedEvent)
 		}
-		id, parseErr := uuid.ParseBytes(e.Id)
-		// TODO: Do something about this
-		if parseErr != nil {
-			fmt.Println("An event with wrong ID format has been detected! I rejected it!")
-			return []EventLogEvent{}, parseErr
-		}
-		formattedEvent := EventLogEvent{
-			TopicId:     topic,
-			Cid:         e.Cid,
-			NewAccounts: newAccounts,
-			Timestamp:   e.Timestamp.Uint64(),
-			BlockNumber: e.BlockNumber.Uint64(),
-			Id:          id,
-		}
-		formattedEvents = append(formattedEvents, formattedEvent)
 	}
 	return formattedEvents, nil
 }
@@ -130,7 +123,6 @@ func (s *Shell) GetEvents(topic string, fromBlock uint64) ([]EventLogEvent, erro
 func (s *Shell) PublishEvent(
 	ctx context.Context,
 	topic string,
-	id uuid.UUID,
 	cid string,
 	newAccounts []string,
 ) (*types.Transaction, common.Address, error) {
@@ -144,7 +136,7 @@ func (s *Shell) PublishEvent(
 	for _, newAccount := range newAccounts {
 		newAccountAddresses = append(newAccountAddresses, common.HexToAddress(newAccount))
 	}
-	tx, txErr := s.contractInstance.PublishEvent(txOptions, topic, []byte(id.String()), cid, newAccountAddresses)
+	tx, txErr := s.contractInstance.PublishEvent(txOptions, topic, cid, newAccountAddresses)
 	if txErr != nil {
 		return nil, common.Address{}, txErr
 	}
@@ -172,13 +164,6 @@ func (s *Shell) UnpackLog(ctx context.Context, log types.Log) (EventLogEvent, er
 		newAccounts = append(newAccounts, address.String())
 	}
 
-	id, parseErr := uuid.ParseBytes(rawEvent.Id)
-	// TODO: Do something about this
-	if parseErr != nil {
-		fmt.Println("An event with wrong ID format has been detected! I rejected it :(")
-		return EventLogEvent{}, parseErr
-	}
-
 	event := EventLogEvent{
 		TopicId:     rawEvent.TopicId,
 		Cid:         rawEvent.Cid,
@@ -186,7 +171,7 @@ func (s *Shell) UnpackLog(ctx context.Context, log types.Log) (EventLogEvent, er
 		Emitter:     emitter.String(),
 		Timestamp:   header.Time,
 		BlockNumber: header.Number.Uint64(),
-		Id:          id,
+		TxHash:      rawEvent.Raw.TxHash.String(),
 	}
 
 	return event, nil

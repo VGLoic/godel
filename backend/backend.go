@@ -6,7 +6,6 @@ import (
 
 	"github.com/VGLoic/godel/eventlog"
 	"github.com/VGLoic/godel/ipfsshell"
-	"github.com/google/uuid"
 )
 
 type Backend struct {
@@ -44,15 +43,12 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		return eventlog.Event{}, ipfsPublishErr
 	}
 
-	id := uuid.New()
-
-	_, from, txErr := b.eth.PublishEvent(context.Background(), publishRequest.Topic, id, cid, publishRequest.NewAccounts)
+	tx, from, txErr := b.eth.PublishEvent(context.Background(), publishRequest.Topic, cid, publishRequest.NewAccounts)
 	if txErr != nil {
 		return eventlog.Event{}, txErr
 	}
 
 	event := eventlog.Event{
-		ID:          id,
 		Type:        businessEvent.Type,
 		Payload:     businessEvent.Payload,
 		Version:     businessEvent.Version,
@@ -62,6 +58,7 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		NewAccounts: publishRequest.NewAccounts,
 		Timestamp:   0,
 		BlockNumber: 0,
+		TxHash:      tx.Hash().String(),
 	}
 	insertedEvent, insertionErr := b.eventLog.Insert(event)
 	if insertionErr != nil {
@@ -123,7 +120,6 @@ func (b *Backend) getEvents(topic string, fromBlock uint64) ([]eventlog.Event, e
 			return nil, businessEventErr
 		}
 		completedEvent := eventlog.Event{
-			ID:          event.Id,
 			Type:        businessEvent.Type,
 			Payload:     businessEvent.Payload,
 			Version:     businessEvent.Version,
@@ -164,7 +160,7 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 				}
 
 				if rawEvent.Emitter == b.accountAddress {
-					_, confirmationErr := b.eventLog.Confirm(rawEvent.Id, rawEvent.BlockNumber, rawEvent.Timestamp)
+					_, confirmationErr := b.eventLog.Confirm(rawEvent.TxHash, rawEvent.BlockNumber, rawEvent.Timestamp)
 					if confirmationErr != nil {
 						fmt.Println(fmt.Errorf("Error in confirming event: %s \n", confirmationErr))
 						break
@@ -183,7 +179,6 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 							break
 						}
 						event := eventlog.Event{
-							ID:          rawEvent.Id,
 							Type:        businessEvent.Type,
 							Payload:     businessEvent.Payload,
 							Version:     businessEvent.Version,
@@ -193,6 +188,7 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 							NewAccounts: rawEvent.NewAccounts,
 							Timestamp:   rawEvent.Timestamp,
 							BlockNumber: rawEvent.BlockNumber,
+							TxHash:      rawEvent.TxHash,
 						}
 						_, insertionErr := b.eventLog.Insert(event)
 						if insertionErr != nil {

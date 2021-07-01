@@ -20,17 +20,15 @@ func UnpackLog(log types.Log) (ContractEventPublished, error) {
 	if unpackErr != nil {
 		return ContractEventPublished{}, unpackErr
 	}
-	if len(unpacked) < 4 {
+	if len(unpacked) < 3 {
 		return ContractEventPublished{}, errors.New("Oh no, the unpacked event must have four elements!")
 	}
 	topic := unpacked[0].(string)
-	id := unpacked[1].([]byte)
-	cid := unpacked[2].(string)
-	newAccounts := unpacked[3].([]common.Address)
+	cid := unpacked[1].(string)
+	newAccounts := unpacked[2].([]common.Address)
 
 	event := ContractEventPublished{
 		TopicId:     topic,
-		Id:          id,
 		Cid:         cid,
 		NewAccounts: newAccounts,
 		Raw:         log,

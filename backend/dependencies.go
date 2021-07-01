@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/google/uuid"
 )
 
 type EventLog interface {
@@ -18,7 +17,7 @@ type EventLog interface {
 	FindLastSynchronisedBlockNumber(topic string) (uint64, error)
 	FindPendingEvents() ([]eventlog.Event, error)
 	FindConfirmedEvents() ([]eventlog.Event, error)
-	Confirm(id uuid.UUID, blockNumber uint64, timestamp uint64) (eventlog.Event, error)
+	Confirm(txHash string, blockNumber uint64, timestamp uint64) (eventlog.Event, error)
 	ClearPendingEvents(topic string) error
 }
 type IpfsShell interface {
@@ -26,7 +25,7 @@ type IpfsShell interface {
 	GetBusinessEvent(cid string) (ipfsshell.BusinessEvent, error)
 }
 type EthShell interface {
-	PublishEvent(ctx context.Context, topic string, id uuid.UUID, cid string, newAccounts []string) (*types.Transaction, common.Address, error)
+	PublishEvent(ctx context.Context, topic string, cid string, newAccounts []string) (*types.Transaction, common.Address, error)
 	GetTopics(ctx context.Context) ([]string, error)
 	GetEvents(topic string, fromBlock uint64) ([]ethshell.EventLogEvent, error)
 	SubscribeToEvents(ctx context.Context) (ethereum.Subscription, chan types.Log, error)

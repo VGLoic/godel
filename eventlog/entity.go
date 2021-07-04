@@ -8,6 +8,8 @@ import (
 type Event struct {
 	gorm.Model
 
+	ID uint `gorm:"primaryKey"`
+
 	Type string `json:"type"`
 
 	Payload string `json:"payload"`

@@ -26,6 +26,9 @@ func (s *mockInternalShell) DagPut(data interface{}, ienc string, kind string) (
 	}
 	return "test", nil
 }
+func (s *mockInternalShell) Pin(path string) error {
+	return nil
+}
 
 func newMockShell() *Shell {
 	return &Shell{

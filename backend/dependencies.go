@@ -17,12 +17,14 @@ type EventLog interface {
 	FindLastSynchronisedBlockNumber(topic string) (uint64, error)
 	FindPendingEvents() ([]eventlog.Event, error)
 	FindConfirmedEvents() ([]eventlog.Event, error)
+	FindPage(offset uint, pageSize uint) ([]eventlog.Event, error)
 	Confirm(txHash string, blockNumber uint64, timestamp uint64) (eventlog.Event, error)
 	ClearPendingEvents(topic string) error
 }
 type IpfsShell interface {
 	PublishBusinessEvent(businessEvent ipfsshell.BusinessEvent) (string, error)
 	GetBusinessEvent(cid string) (ipfsshell.BusinessEvent, error)
+	PinBusinessEventCid(cid string) error
 }
 type EthShell interface {
 	PublishEvent(ctx context.Context, topic string, cid string, newAccounts []string) (*types.Transaction, common.Address, error)

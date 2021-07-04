@@ -110,6 +110,7 @@ func (s *Shell) GetEvents(topic string, fromBlock uint64) ([]EventLogEvent, erro
 			formattedEvent := EventLogEvent{
 				TopicId:     topic,
 				Cid:         e.Cid,
+				Emitter:     e.Emitter.String(),
 				NewAccounts: newAccounts,
 				Timestamp:   e.Timestamp.Uint64(),
 				BlockNumber: e.BlockNumber.Uint64(),

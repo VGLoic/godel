@@ -135,6 +135,18 @@ func (e *EventLog) FindPendingEvents() ([]Event, error) {
 	return events, nil
 }
 
+func (e *EventLog) FindPage(offset uint, pageSize uint) ([]Event, error) {
+	events := []Event{}
+
+	result := e.db.Offset(int(offset)).Limit(int(pageSize)).Find(&events)
+
+	if result.Error != nil {
+		return events, result.Error
+	}
+
+	return events, nil
+}
+
 func (e *EventLog) ClearPendingEvents(topic string) error {
 	e.db.Delete(&Event{}, "topic = ? AND block_number = 0", topic)
 	return nil

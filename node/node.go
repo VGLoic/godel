@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"context"
@@ -37,7 +37,9 @@ func NewGodelNode(ctx context.Context) (*Godel, error) {
 	}
 
 	ipfsShell, ipfsShellErr := ipfsshell.NewShell(ipfsshell.ShellConfiguration{
-		IpfsNodeUrl: viper.GetString("IPFS_DAEMON_URL"),
+		IpfsNodeUrl:   viper.GetString("IPFS_DAEMON_URL"),
+		ProjectId:     viper.GetString("IPFS_PROJECT_ID"),
+		ProjectSecret: viper.GetString("IPFS_PROJECT_SECRET"),
 	})
 	if ipfsShellErr != nil {
 		return nil, ipfsShellErr
@@ -69,6 +71,11 @@ func (g *Godel) Start(ctx context.Context) error {
 	if subscriptionErr != nil {
 		return subscriptionErr
 	}
+
+	// pinningRoutineErr := g.b.LaunchPinningRoutine(ctx)
+	// if pinningRoutineErr != nil {
+	// 	return pinningRoutineErr
+	// }
 
 	return nil
 }

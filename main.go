@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+
+	"github.com/VGLoic/godel/node"
 )
 
 func main() {
@@ -11,7 +13,7 @@ func main() {
 	defer cancel()
 
 	fmt.Println("-- Creating Godel Node --")
-	godelNode, godelNodeErr := NewGodelNode(ctx)
+	godelNode, godelNodeErr := node.NewGodelNode(ctx)
 	if godelNodeErr != nil {
 		panic(fmt.Errorf("Fatal error godel node: %s \n", godelNodeErr))
 	}

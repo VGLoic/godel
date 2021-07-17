@@ -60,10 +60,10 @@ func NewEventLog(eventLogConfiguration EventLogConfiguration) (*EventLog, error)
 	return &eventLog, nil
 }
 
-func (e *EventLog) FindLastSynchronisedBlockNumber(topic string) (uint64, error) {
+func (e *EventLog) FindLastSynchronisedDepth(topic string) (uint64, error) {
 	event := Event{}
 
-	result := e.db.Where("block_number > 0 AND topic = ?", topic).Order("block_number desc").First(&event)
+	result := e.db.Where("depth > 0 AND topic = ?", topic).Order("depth desc").First(&event)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -72,20 +72,7 @@ func (e *EventLog) FindLastSynchronisedBlockNumber(topic string) (uint64, error)
 		return 0, result.Error
 	}
 
-	return event.BlockNumber, nil
-}
-
-func (e *EventLog) ResetFromBlockAndInsert(topic string, fromBlock uint64, events []Event) error {
-	e.db.Delete(&Event{}, "topic = ? AND block_number >= ?", topic, fromBlock)
-
-	for _, event := range events {
-		_, insertErr := e.Insert(event)
-		if insertErr != nil {
-			return insertErr
-		}
-	}
-
-	return nil
+	return event.Depth, nil
 }
 
 func (e *EventLog) Insert(event Event) (Event, error) {
@@ -98,7 +85,20 @@ func (e *EventLog) Insert(event Event) (Event, error) {
 	return event, nil
 }
 
-func (e *EventLog) Confirm(txHash string, blockNumber uint64, timestamp uint64) (Event, error) {
+func (e *EventLog) InsertMany(events []Event) ([]Event, error) {
+	insertedEvents := []Event{}
+	for _, event := range events {
+		insertedEvent, insertErr := e.Insert(event)
+		if insertErr != nil {
+			return []Event{}, insertErr
+		}
+		insertedEvents = append(insertedEvents, insertedEvent)
+	}
+
+	return insertedEvents, nil
+}
+
+func (e *EventLog) Confirm(txHash string, blockNumber uint64, timestamp uint64, depth uint64) (Event, error) {
 	existingEvent := Event{}
 	getResult := e.db.Where("tx_hash = ?", txHash).Take(&existingEvent)
 	if getResult.Error != nil {
@@ -106,6 +106,7 @@ func (e *EventLog) Confirm(txHash string, blockNumber uint64, timestamp uint64) 
 	}
 	existingEvent.Timestamp = timestamp
 	existingEvent.BlockNumber = blockNumber
+	existingEvent.Depth = depth
 	e.db.Save(&existingEvent)
 	fmt.Printf("Confirmation of event with tx hash %v is made\n", txHash)
 	return existingEvent, nil
@@ -114,7 +115,7 @@ func (e *EventLog) Confirm(txHash string, blockNumber uint64, timestamp uint64) 
 func (e *EventLog) FindConfirmedEvents() ([]Event, error) {
 	events := []Event{}
 
-	result := e.db.Where("block_number > 0").Order("block_number asc").Find(&events)
+	result := e.db.Where("depth > 0").Order("depth asc").Find(&events)
 
 	if result.Error != nil {
 		return events, result.Error
@@ -126,19 +127,7 @@ func (e *EventLog) FindConfirmedEvents() ([]Event, error) {
 func (e *EventLog) FindPendingEvents() ([]Event, error) {
 	events := []Event{}
 
-	result := e.db.Where("block_number = 0").Order("block_number asc").Find(&events)
-
-	if result.Error != nil {
-		return events, result.Error
-	}
-
-	return events, nil
-}
-
-func (e *EventLog) FindPage(offset uint, pageSize uint) ([]Event, error) {
-	events := []Event{}
-
-	result := e.db.Offset(int(offset)).Limit(int(pageSize)).Find(&events)
+	result := e.db.Where("depth = 0").Order("id asc").Find(&events)
 
 	if result.Error != nil {
 		return events, result.Error
@@ -148,6 +137,6 @@ func (e *EventLog) FindPage(offset uint, pageSize uint) ([]Event, error) {
 }
 
 func (e *EventLog) ClearPendingEvents(topic string) error {
-	e.db.Delete(&Event{}, "topic = ? AND block_number = 0", topic)
+	e.db.Delete(&Event{}, "topic = ? AND depth = 0", topic)
 	return nil
 }

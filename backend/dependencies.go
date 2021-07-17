@@ -13,12 +13,11 @@ import (
 
 type EventLog interface {
 	Insert(event eventlog.Event) (eventlog.Event, error)
-	ResetFromBlockAndInsert(topic string, lastBlockNumber uint64, events []eventlog.Event) error
-	FindLastSynchronisedBlockNumber(topic string) (uint64, error)
+	InsertMany(events []eventlog.Event) ([]eventlog.Event, error)
+	FindLastSynchronisedDepth(topic string) (uint64, error)
 	FindPendingEvents() ([]eventlog.Event, error)
 	FindConfirmedEvents() ([]eventlog.Event, error)
-	FindPage(offset uint, pageSize uint) ([]eventlog.Event, error)
-	Confirm(txHash string, blockNumber uint64, timestamp uint64) (eventlog.Event, error)
+	Confirm(txHash string, blockNumber uint64, timestamp uint64, depth uint64) (eventlog.Event, error)
 	ClearPendingEvents(topic string) error
 }
 type IpfsShell interface {
@@ -29,7 +28,7 @@ type IpfsShell interface {
 type EthShell interface {
 	PublishEvent(ctx context.Context, topic string, cid string, newAccounts []string) (*types.Transaction, common.Address, error)
 	GetTopics(ctx context.Context) ([]string, error)
-	GetEvents(topic string, fromBlock uint64) ([]ethshell.EventLogEvent, error)
+	GetEvents(topic string, fromDepth uint64) ([]ethshell.EventLogEvent, error)
 	SubscribeToEvents(ctx context.Context) (ethereum.Subscription, chan types.Log, error)
 	UnpackLog(ctx context.Context, log types.Log) (ethshell.EventLogEvent, error)
 }

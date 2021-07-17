@@ -72,11 +72,6 @@ func (g *Godel) Start(ctx context.Context) error {
 		return subscriptionErr
 	}
 
-	// pinningRoutineErr := g.b.LaunchPinningRoutine(ctx)
-	// if pinningRoutineErr != nil {
-	// 	return pinningRoutineErr
-	// }
-
 	return nil
 }
 

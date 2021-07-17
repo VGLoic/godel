@@ -59,6 +59,7 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		NewAccounts: publishRequest.NewAccounts,
 		Timestamp:   0,
 		BlockNumber: 0,
+		Depth:       0,
 		TxHash:      tx.Hash().String(),
 	}
 	insertedEvent, insertionErr := b.eventLog.Insert(event)
@@ -94,12 +95,12 @@ func (b *Backend) SynchroniseAllTopics(ctx context.Context) error {
 
 func (b *Backend) synchroniseTopic(ctx context.Context, topic string) error {
 
-	lastBlocknumber, blockNumberErr := b.eventLog.FindLastSynchronisedBlockNumber(topic)
-	if blockNumberErr != nil {
-		return blockNumberErr
+	lastDepth, depthErr := b.eventLog.FindLastSynchronisedDepth(topic)
+	if depthErr != nil {
+		return depthErr
 	}
-	fmt.Println("Last block: ", lastBlocknumber, " for topic ", topic)
-	events, eventsErr := b.getEvents(topic, lastBlocknumber)
+	fmt.Println("Last depth: ", lastDepth, " for topic ", topic)
+	events, eventsErr := b.getEvents(topic, lastDepth)
 	if eventsErr != nil {
 		return eventsErr
 	}
@@ -109,16 +110,16 @@ func (b *Backend) synchroniseTopic(ctx context.Context, topic string) error {
 		return clearErr
 	}
 
-	resetErr := b.eventLog.ResetFromBlockAndInsert(topic, lastBlocknumber, events)
-	if resetErr != nil {
-		return resetErr
+	_, insertManyErr := b.eventLog.InsertMany(events)
+	if insertManyErr != nil {
+		return insertManyErr
 	}
 
 	return nil
 }
 
-func (b *Backend) getEvents(topic string, fromBlock uint64) ([]eventlog.Event, error) {
-	events, eventsErr := b.eth.GetEvents(topic, fromBlock)
+func (b *Backend) getEvents(topic string, fromDepth uint64) ([]eventlog.Event, error) {
+	events, eventsErr := b.eth.GetEvents(topic, fromDepth)
 	if eventsErr != nil {
 		return nil, eventsErr
 	}
@@ -142,6 +143,7 @@ func (b *Backend) getEvents(topic string, fromBlock uint64) ([]eventlog.Event, e
 			NewAccounts: event.NewAccounts,
 			Timestamp:   event.Timestamp,
 			BlockNumber: event.BlockNumber,
+			Depth:       event.Depth,
 		}
 		completedEvents = append(completedEvents, completedEvent)
 	}
@@ -186,18 +188,18 @@ func (b *Backend) processLog(ctx context.Context, log types.Log) error {
 	}
 
 	if rawEvent.Emitter == b.accountAddress {
-		_, confirmationErr := b.eventLog.Confirm(rawEvent.TxHash, rawEvent.BlockNumber, rawEvent.Timestamp)
+		_, confirmationErr := b.eventLog.Confirm(rawEvent.TxHash, rawEvent.BlockNumber, rawEvent.Timestamp, rawEvent.Depth)
 		if confirmationErr != nil {
 			return confirmationErr
 		}
 		return nil
 	}
 
-	lastBlockNumber, lastBlockErr := b.eventLog.FindLastSynchronisedBlockNumber(rawEvent.TopicId)
-	if lastBlockErr != nil {
-		return lastBlockErr
+	lastDepth, lastDepthErr := b.eventLog.FindLastSynchronisedDepth(rawEvent.TopicId)
+	if lastDepthErr != nil {
+		return lastDepthErr
 	}
-	if isTopicKnown := lastBlockNumber > 0; isTopicKnown {
+	if isTopicKnown := lastDepth > 0; isTopicKnown {
 		businessEvent, retrieveFromIpfsErr := b.ipfs.GetBusinessEvent(rawEvent.Cid)
 		if retrieveFromIpfsErr != nil {
 			return retrieveFromIpfsErr
@@ -216,6 +218,7 @@ func (b *Backend) processLog(ctx context.Context, log types.Log) error {
 			NewAccounts: rawEvent.NewAccounts,
 			Timestamp:   rawEvent.Timestamp,
 			BlockNumber: rawEvent.BlockNumber,
+			Depth:       rawEvent.Depth,
 			TxHash:      rawEvent.TxHash,
 		}
 		_, insertionErr := b.eventLog.Insert(event)
@@ -244,47 +247,3 @@ func contains(arr []string, str string) bool {
 	}
 	return false
 }
-
-// #################################### WIP ####################################
-// func (b *Backend) LaunchPinningRoutine(ctx context.Context) error {
-// 	// go func() {
-// 	// 	next := time.After(0)
-// 	// 	for {
-// 	// 		select {
-// 	// 		case <-next:
-// 	// 			fmt.Println("Triggered")
-// 	// 			// b.parseEvents(ctx)
-// 	// 			next = time.After(10 * time.Second)
-// 	// 		case <-ctx.Done():
-// 	// 			return
-// 	// 		}
-// 	// 	}
-// 	// }()
-// 	return nil
-// }
-
-// func (b *Backend) parseEvents(ctx context.Context) {
-// 	pageSize := uint(1)
-// 	page := uint(2)
-
-// 	hasReachedLastRow := false
-// 	for !hasReachedLastRow {
-// 		fmt.Println("Dealing with page: ", page)
-// 		offset := (page - 1) * pageSize
-// 		hasReachedLastRow = b.parsePage(ctx, offset, pageSize)
-// 		page += 1
-// 	}
-// }
-
-// func (b *Backend) parsePage(ctx context.Context, offset uint, pageSize uint) bool {
-// 	events, queryErr := b.eventLog.FindPage(offset, pageSize)
-// 	if queryErr != nil {
-// 		fmt.Println(fmt.Errorf("Error in querying events for offset %v and pageSize %v: %s \n", offset, pageSize, queryErr))
-// 		return false
-// 	}
-// 	for _, event := range events {
-// 		fmt.Println("Event: ", event)
-// 	}
-
-// 	return len(events) < int(pageSize)
-// }

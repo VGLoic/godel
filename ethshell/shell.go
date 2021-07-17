@@ -22,6 +22,7 @@ type EventLogEvent struct {
 	Emitter     string
 	Timestamp   uint64
 	BlockNumber uint64
+	Depth       uint64
 	TxHash      string
 }
 
@@ -95,14 +96,15 @@ func (s *Shell) GetTopics(ctx context.Context) ([]string, error) {
 	return topics, nil
 }
 
-func (s *Shell) GetEvents(topic string, fromBlock uint64) ([]EventLogEvent, error) {
+func (s *Shell) GetEvents(topic string, fromDepth uint64) ([]EventLogEvent, error) {
 	events, eventsErr := s.contractInstance.GetEvents(nil, topic)
 	if eventsErr != nil {
 		return nil, eventsErr
 	}
 	formattedEvents := []EventLogEvent{}
-	for _, e := range events {
-		if e.BlockNumber.Uint64() >= fromBlock {
+	for index, e := range events {
+		depth := uint64(index) + 1
+		if depth >= fromDepth {
 			newAccounts := []string{}
 			for _, address := range e.NewAccounts {
 				newAccounts = append(newAccounts, address.String())
@@ -114,6 +116,7 @@ func (s *Shell) GetEvents(topic string, fromBlock uint64) ([]EventLogEvent, erro
 				NewAccounts: newAccounts,
 				Timestamp:   e.Timestamp.Uint64(),
 				BlockNumber: e.BlockNumber.Uint64(),
+				Depth:       depth,
 			}
 			formattedEvents = append(formattedEvents, formattedEvent)
 		}
@@ -172,6 +175,7 @@ func (s *Shell) UnpackLog(ctx context.Context, log types.Log) (EventLogEvent, er
 		Emitter:     emitter.String(),
 		Timestamp:   header.Time,
 		BlockNumber: header.Number.Uint64(),
+		Depth:       rawEvent.Depth.Uint64(),
 		TxHash:      rawEvent.Raw.TxHash.String(),
 	}
 

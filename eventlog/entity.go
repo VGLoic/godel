@@ -28,6 +28,8 @@ type Event struct {
 
 	BlockNumber uint64 `json:"blockNumber"`
 
+	Depth uint64 `json:"depth"`
+
 	TxHash string `json:"txHash"`
 }
 

@@ -34,5 +34,5 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v1
       
-      - name: Run uint tests
+      - name: Build the binary
         run: go build

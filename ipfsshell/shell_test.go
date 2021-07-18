@@ -6,12 +6,14 @@ import (
 	"testing"
 )
 
-type mockInternalShell struct{}
+type mockInternalShell struct {
+	returnedCid string
+}
 
 var testError = errors.New("test error")
 
 func (s *mockInternalShell) DagGet(cid string, out interface{}) error {
-	if cid == "unknown" {
+	if cid == "" {
 		return testError
 	}
 	out.(*BusinessEvent).Type = "type"
@@ -24,20 +26,23 @@ func (s *mockInternalShell) DagPut(data interface{}, ienc string, kind string) (
 	if len(data.([]byte)) == len(emptyMarsh) {
 		return "", testError
 	}
-	return "test", nil
+	return s.returnedCid, nil
 }
 func (s *mockInternalShell) Pin(path string) error {
+	if path == "" {
+		return testError
+	}
 	return nil
 }
 
-func newMockShell() *Shell {
+func newMockShell(returnedCid string) *Shell {
 	return &Shell{
-		goIpfsShell: &mockInternalShell{},
+		goIpfsShell: &mockInternalShell{returnedCid: returnedCid},
 	}
 }
 
 func TestGetBusinessEvent(t *testing.T) {
-	s := newMockShell()
+	s := newMockShell("test")
 	testBusinessEvent := BusinessEvent{
 		Type:    "type",
 		Payload: "payload",
@@ -55,7 +60,7 @@ func TestGetBusinessEvent(t *testing.T) {
 	})
 
 	t.Run("when the business event is not found", func(t *testing.T) {
-		businessEvent, err := s.GetBusinessEvent("unknown")
+		businessEvent, err := s.GetBusinessEvent("")
 		if err != testError {
 			t.Errorf("err = %v; want %v", err, testError)
 		}
@@ -67,7 +72,6 @@ func TestGetBusinessEvent(t *testing.T) {
 }
 
 func TestPublishBusinessEvent(t *testing.T) {
-	s := newMockShell()
 	testBusinessEvent := BusinessEvent{
 		Type:    "type",
 		Payload: "payload",
@@ -75,6 +79,7 @@ func TestPublishBusinessEvent(t *testing.T) {
 	}
 
 	t.Run("when the publish to IPFS is successful", func(t *testing.T) {
+		s := newMockShell("test")
 		cid, err := s.PublishBusinessEvent(testBusinessEvent)
 		if err != nil {
 			t.Errorf("err = %v; want %v", err, nil)
@@ -85,6 +90,18 @@ func TestPublishBusinessEvent(t *testing.T) {
 	})
 
 	t.Run("when the publish to IPFS fails", func(t *testing.T) {
+		s := newMockShell("test")
+		cid, err := s.PublishBusinessEvent(BusinessEvent{})
+		if err != testError {
+			t.Errorf("err = %v; want %v", err, testError)
+		}
+		if cid != "" {
+			t.Errorf("cid = %v; want %v", cid, "")
+		}
+	})
+
+	t.Run("when the pinning of the cid fails", func(t *testing.T) {
+		s := newMockShell("")
 		cid, err := s.PublishBusinessEvent(BusinessEvent{})
 		if err != testError {
 			t.Errorf("err = %v; want %v", err, testError)

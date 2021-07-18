@@ -16,7 +16,7 @@ jobs:
           go-version: 1.15
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
       
       - name: Run uint tests
         run: go test -v ./...
@@ -32,7 +32,7 @@ jobs:
           go-version: 1.15
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
       
       - name: Build the binary
         run: go build

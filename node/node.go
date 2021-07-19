@@ -62,6 +62,9 @@ func NewGodelNode(ctx context.Context) (*Godel, error) {
 }
 
 func (g *Godel) Start(ctx context.Context) error {
+
+	go g.b.MakeLocalDataAvailable(ctx)
+
 	synchronisationErr := g.b.SynchroniseAllTopics(ctx)
 	if synchronisationErr != nil {
 		return synchronisationErr

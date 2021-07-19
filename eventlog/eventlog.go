@@ -140,3 +140,22 @@ func (e *EventLog) ClearPendingEvents(topic string) error {
 	e.db.Delete(&Event{}, "topic = ? AND depth = 0", topic)
 	return nil
 }
+
+func (e *EventLog) FindPage(offset uint, pageSize uint) ([]Event, bool, error) {
+	events := []Event{}
+
+	result := e.db.Where("depth > 0").Offset(int(offset)).Limit(int(pageSize) + 1).Find(&events)
+
+	if result.Error != nil {
+		return events, false, result.Error
+	}
+	hasMore := len(events) > int(pageSize)
+
+	var filteredEvents []Event
+	if hasMore {
+		filteredEvents = events[:pageSize]
+	} else {
+		filteredEvents = events
+	}
+	return filteredEvents, hasMore, nil
+}

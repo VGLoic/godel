@@ -77,6 +77,42 @@ func (b *Backend) FindConfirmedEvents() ([]eventlog.Event, error) {
 	return b.eventLog.FindConfirmedEvents()
 }
 
+func (b *Backend) MakeLocalDataAvailable(ctx context.Context) error {
+	pageSize := uint(50)
+	page := uint(1)
+
+	hasReachedLastRow := false
+	var err error
+	for !hasReachedLastRow {
+		offset := (page - 1) * pageSize
+		hasReachedLastRow, err = b.makePageAvailable(ctx, offset, pageSize)
+		if err != nil {
+			fmt.Println(fmt.Errorf("Error in making the page available for offset %v and pageSize %v: %s \n", offset, pageSize, err))
+		}
+	}
+	return nil
+}
+
+func (b *Backend) makePageAvailable(ctx context.Context, offset uint, pageSize uint) (bool, error) {
+	events, hasMore, queryErr := b.eventLog.FindPage(offset, pageSize)
+	if queryErr != nil {
+		fmt.Println(fmt.Errorf("Error in querying events for offset %v and pageSize %v: %s \n", offset, pageSize, queryErr))
+		return false, queryErr
+	}
+	for _, event := range events {
+		businessEvent := ipfsshell.BusinessEvent{
+			Type:    event.Type,
+			Payload: event.Payload,
+			Version: event.Version,
+		}
+		_, publishErr := b.ipfs.PublishBusinessEvent(businessEvent)
+		if publishErr != nil {
+			fmt.Println(fmt.Errorf("Error in publishing event to IPFS during initialization: %s \n", publishErr))
+		}
+	}
+	return !hasMore, nil
+}
+
 func (b *Backend) SynchroniseAllTopics(ctx context.Context) error {
 	topics, topicsErr := b.eth.GetTopics(ctx)
 	if topicsErr != nil {

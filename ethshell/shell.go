@@ -104,7 +104,7 @@ func (s *Shell) GetEvents(topic string, fromDepth uint64) ([]EventLogEvent, erro
 	formattedEvents := []EventLogEvent{}
 	for index, e := range events {
 		depth := uint64(index) + 1
-		if depth >= fromDepth {
+		if depth > fromDepth {
 			newAccounts := []string{}
 			for _, address := range e.NewAccounts {
 				newAccounts = append(newAccounts, address.String())

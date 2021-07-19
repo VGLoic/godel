@@ -9,7 +9,7 @@ services:
     image: postgres:11.4
     restart: always
     env_file:
-      - .env.local
+      - .env.db
     ports:
       - 5432:5432
     networks: 

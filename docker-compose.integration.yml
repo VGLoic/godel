@@ -1,0 +1,30 @@
+version: '3.7'
+
+networks:
+  app:
+
+services: 
+  godel:
+    container_name: godel
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    env_file:
+      - .env.docker
+    expose:
+      - 1234
+    ports:
+      - 1234:1234
+    depends_on:
+      - db
+    networks: 
+      - app
+  db:
+    image: postgres:11.4
+    restart: always
+    env_file:
+      - .env.db
+    ports:
+      - 5432:5432
+    networks: 
+      - app

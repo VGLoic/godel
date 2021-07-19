@@ -1,6 +1,8 @@
 package eventlog
 
 import (
+	"time"
+
 	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
@@ -31,6 +33,10 @@ type Event struct {
 	Depth uint64 `json:"depth"`
 
 	TxHash string `json:"txHash"`
+
+	CreatedAt time.Time
+
+	UpdatedAt time.Time
 }
 
 func AutoMigrate(db *gorm.DB) {

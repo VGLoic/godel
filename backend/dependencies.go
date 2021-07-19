@@ -19,6 +19,7 @@ type EventLog interface {
 	FindConfirmedEvents() ([]eventlog.Event, error)
 	Confirm(txHash string, blockNumber uint64, timestamp uint64, depth uint64) (eventlog.Event, error)
 	ClearPendingEvents(topic string) error
+	FindPage(offset uint, pageSize uint) ([]eventlog.Event, bool, error)
 }
 type IpfsShell interface {
 	PublishBusinessEvent(businessEvent ipfsshell.BusinessEvent) (string, error)

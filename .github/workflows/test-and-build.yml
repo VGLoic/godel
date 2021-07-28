@@ -33,14 +33,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
       
-      - name: Run integration tests 
-        run: |
-          INTEGRATION_IPFS_DAEMON_URL=${{ secrets.INTEGRATION_IPFS_DAEMON_URL }}
-          INTEGRATION_IPFS_PROJECT_ID=${{ secrets.INTEGRATION_IPFS_PROJECT_ID }}
-          INTEGRATION_IPFS_PROJECT_SECRET=${{ secrets.INTEGRATION_IPFS_PROJECT_SECRET }}
-          INTEGRATION_MNEMONIC=${{ secrets.INTEGRATION_MNEMONIC }}
-          INTEGRATION_PRIVATE_KEY=${{ secrets.INTEGRATION_PRIVATE_KEY }}
-          go test -v ./... --tags=integration
+      - name: Run integration tests
+        run: go test -v ./... --tags=integration
+        env:
+          INTEGRATION_IPFS_DAEMON_URL: ${{ secrets.INTEGRATION_IPFS_DAEMON_URL }}
+          INTEGRATION_IPFS_PROJECT_ID: ${{ secrets.INTEGRATION_IPFS_PROJECT_ID }}
+          INTEGRATION_IPFS_PROJECT_SECRET: ${{ secrets.INTEGRATION_IPFS_PROJECT_SECRET }}
+          INTEGRATION_MNEMONIC: ${{ secrets.INTEGRATION_MNEMONIC }}
+          INTEGRATION_PRIVATE_KEY: ${{ secrets.INTEGRATION_PRIVATE_KEY }}
 
   build:
     name: Build

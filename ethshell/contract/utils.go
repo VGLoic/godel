@@ -11,15 +11,15 @@ import (
 )
 
 func UnpackLog(log types.Log) (ContractEventPublished, error) {
-	contractAbi, abiErr := abi.JSON(strings.NewReader(string(ContractABI)))
-	if abiErr != nil {
-		return ContractEventPublished{}, abiErr
+	contractAbi, err := abi.JSON(strings.NewReader(string(ContractABI)))
+	if err != nil {
+		return ContractEventPublished{}, err
 	}
 
-	unpacked, unpackErr := contractAbi.Unpack("EventPublished", log.Data)
+	unpacked, err := contractAbi.Unpack("EventPublished", log.Data)
 
-	if unpackErr != nil {
-		return ContractEventPublished{}, unpackErr
+	if err != nil {
+		return ContractEventPublished{}, err
 	}
 	if len(unpacked) != 4 {
 		return ContractEventPublished{}, errors.New("Oh no, the unpacked event must have four elements!")

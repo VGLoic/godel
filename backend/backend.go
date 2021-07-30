@@ -39,14 +39,14 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		Payload: publishRequest.Payload,
 		Version: publishRequest.Version,
 	}
-	cid, ipfsPublishErr := b.ipfs.PublishBusinessEvent(businessEvent)
-	if ipfsPublishErr != nil {
-		return eventlog.Event{}, ipfsPublishErr
+	cid, err := b.ipfs.PublishBusinessEvent(businessEvent)
+	if err != nil {
+		return eventlog.Event{}, err
 	}
 
-	tx, from, txErr := b.eth.PublishEvent(context.Background(), publishRequest.Topic, cid, publishRequest.NewAccounts)
-	if txErr != nil {
-		return eventlog.Event{}, txErr
+	tx, from, err := b.eth.PublishEvent(context.Background(), publishRequest.Topic, cid, publishRequest.NewAccounts)
+	if err != nil {
+		return eventlog.Event{}, err
 	}
 
 	event := eventlog.Event{
@@ -62,9 +62,9 @@ func (b *Backend) PublishEvent(publishRequest PublishRequest) (eventlog.Event, e
 		Depth:       0,
 		TxHash:      tx.Hash().String(),
 	}
-	insertedEvent, insertionErr := b.eventLog.Insert(event)
-	if insertionErr != nil {
-		return eventlog.Event{}, insertionErr
+	insertedEvent, err := b.eventLog.Insert(event)
+	if err != nil {
+		return eventlog.Event{}, err
 	}
 	return insertedEvent, nil
 }
@@ -94,10 +94,10 @@ func (b *Backend) MakeLocalDataAvailable(ctx context.Context) error {
 }
 
 func (b *Backend) makePageAvailable(ctx context.Context, offset uint, pageSize uint) (bool, error) {
-	events, hasMore, queryErr := b.eventLog.FindPage(offset, pageSize)
-	if queryErr != nil {
-		fmt.Println(fmt.Errorf("Error in querying events for offset %v and pageSize %v: %s \n", offset, pageSize, queryErr))
-		return false, queryErr
+	events, hasMore, err := b.eventLog.FindPage(offset, pageSize)
+	if err != nil {
+		fmt.Println(fmt.Errorf("Error in querying events for offset %v and pageSize %v: %s \n", offset, pageSize, err))
+		return false, err
 	}
 	for _, event := range events {
 		businessEvent := ipfsshell.BusinessEvent{
@@ -114,15 +114,15 @@ func (b *Backend) makePageAvailable(ctx context.Context, offset uint, pageSize u
 }
 
 func (b *Backend) SynchroniseAllTopics(ctx context.Context) error {
-	topics, topicsErr := b.eth.GetTopics(ctx)
-	if topicsErr != nil {
-		return topicsErr
+	topics, err := b.eth.GetTopics(ctx)
+	if err != nil {
+		return err
 	}
 
 	for _, topic := range topics {
-		synchronisationErr := b.synchroniseTopic(ctx, topic)
-		if synchronisationErr != nil {
-			return synchronisationErr
+		err := b.synchroniseTopic(ctx, topic)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -131,33 +131,33 @@ func (b *Backend) SynchroniseAllTopics(ctx context.Context) error {
 
 func (b *Backend) synchroniseTopic(ctx context.Context, topic string) error {
 
-	lastDepth, depthErr := b.eventLog.FindLastSynchronisedDepth(topic)
-	if depthErr != nil {
-		return depthErr
+	lastDepth, err := b.eventLog.FindLastSynchronisedDepth(topic)
+	if err != nil {
+		return err
 	}
 	fmt.Println("Last depth: ", lastDepth, " for topic ", topic)
-	events, eventsErr := b.getEvents(topic, lastDepth)
-	if eventsErr != nil {
-		return eventsErr
+	events, err := b.getEvents(topic, lastDepth)
+	if err != nil {
+		return err
 	}
 
-	clearErr := b.eventLog.ClearPendingEvents(topic)
-	if clearErr != nil {
-		return clearErr
+	err = b.eventLog.ClearPendingEvents(topic)
+	if err != nil {
+		return err
 	}
 
-	_, insertManyErr := b.eventLog.InsertMany(events)
-	if insertManyErr != nil {
-		return insertManyErr
+	_, err = b.eventLog.InsertMany(events)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (b *Backend) getEvents(topic string, fromDepth uint64) ([]eventlog.Event, error) {
-	events, eventsErr := b.eth.GetEvents(topic, fromDepth)
-	if eventsErr != nil {
-		return nil, eventsErr
+	events, err := b.eth.GetEvents(topic, fromDepth)
+	if err != nil {
+		return nil, err
 	}
 	completedEvents := []eventlog.Event{}
 	for _, event := range events {
@@ -165,9 +165,9 @@ func (b *Backend) getEvents(topic string, fromDepth uint64) ([]eventlog.Event, e
 		if businessEventErr != nil {
 			return nil, businessEventErr
 		}
-		pinErr := b.ipfs.PinBusinessEventCid(event.Cid)
-		if pinErr != nil {
-			return nil, pinErr
+		err := b.ipfs.PinBusinessEventCid(event.Cid)
+		if err != nil {
+			return nil, err
 		}
 		completedEvent := eventlog.Event{
 			Type:        businessEvent.Type,
@@ -187,18 +187,18 @@ func (b *Backend) getEvents(topic string, fromDepth uint64) ([]eventlog.Event, e
 }
 
 func (b *Backend) SubscribeToEvents(ctx context.Context) error {
-	sub, logs, subErr := b.eth.SubscribeToEvents(ctx)
-	if subErr != nil {
-		return subErr
+	sub, logs, err := b.eth.SubscribeToEvents(ctx)
+	if err != nil {
+		return err
 	}
 
 	go func() {
 		for {
 			select {
 			case log := <-logs:
-				processErr := b.processLog(ctx, log)
-				if processErr != nil {
-					fmt.Println(fmt.Errorf("Error in processing the log: %s \n", processErr))
+				err := b.processLog(ctx, log)
+				if err != nil {
+					fmt.Println(fmt.Errorf("Error in processing the log: %s \n", err))
 					break
 				}
 			case err := <-sub.Err():
@@ -218,31 +218,31 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 
 func (b *Backend) processLog(ctx context.Context, log types.Log) error {
 
-	rawEvent, unpackingErr := b.eth.UnpackLog(ctx, log)
-	if unpackingErr != nil {
-		return unpackingErr
+	rawEvent, err := b.eth.UnpackLog(ctx, log)
+	if err != nil {
+		return err
 	}
 
 	if rawEvent.Emitter == b.accountAddress {
-		_, confirmationErr := b.eventLog.Confirm(rawEvent.TxHash, rawEvent.BlockNumber, rawEvent.Timestamp, rawEvent.Depth)
-		if confirmationErr != nil {
-			return confirmationErr
+		_, err := b.eventLog.Confirm(rawEvent.TxHash, rawEvent.BlockNumber, rawEvent.Timestamp, rawEvent.Depth)
+		if err != nil {
+			return err
 		}
 		return nil
 	}
 
-	lastDepth, lastDepthErr := b.eventLog.FindLastSynchronisedDepth(rawEvent.TopicId)
-	if lastDepthErr != nil {
-		return lastDepthErr
+	lastDepth, err := b.eventLog.FindLastSynchronisedDepth(rawEvent.TopicId)
+	if err != nil {
+		return err
 	}
 	if isTopicKnown := lastDepth > 0; isTopicKnown {
-		businessEvent, retrieveFromIpfsErr := b.ipfs.GetBusinessEvent(rawEvent.Cid)
-		if retrieveFromIpfsErr != nil {
-			return retrieveFromIpfsErr
+		businessEvent, err := b.ipfs.GetBusinessEvent(rawEvent.Cid)
+		if err != nil {
+			return err
 		}
-		pinErr := b.ipfs.PinBusinessEventCid(rawEvent.Cid)
-		if pinErr != nil {
-			return pinErr
+		err = b.ipfs.PinBusinessEventCid(rawEvent.Cid)
+		if err != nil {
+			return err
 		}
 		event := eventlog.Event{
 			Type:        businessEvent.Type,
@@ -257,16 +257,16 @@ func (b *Backend) processLog(ctx context.Context, log types.Log) error {
 			Depth:       rawEvent.Depth,
 			TxHash:      rawEvent.TxHash,
 		}
-		_, insertionErr := b.eventLog.Insert(event)
-		if insertionErr != nil {
-			return insertionErr
+		_, err = b.eventLog.Insert(event)
+		if err != nil {
+			return err
 		}
 		return nil
 	}
 	if isMemberAdded := contains(rawEvent.NewAccounts, b.accountAddress); isMemberAdded {
-		syncErr := b.synchroniseTopic(ctx, rawEvent.TopicId)
-		if syncErr != nil {
-			return syncErr
+		err := b.synchroniseTopic(ctx, rawEvent.TopicId)
+		if err != nil {
+			return err
 		}
 		return nil
 	}

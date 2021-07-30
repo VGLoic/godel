@@ -1,4 +1,4 @@
-name: CI to Docker Hub
+name: Main Branch CI
 on:
   push:
     branches:
@@ -6,7 +6,7 @@ on:
     
 jobs:
   docker:
-    name: Docker 
+    name: Docker push
     runs-on: ubuntu-latest
     steps:
       - name: Check out code

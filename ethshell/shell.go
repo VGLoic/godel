@@ -40,15 +40,15 @@ type ShellConfiguration struct {
 }
 
 func NewShell(shellConfiguration ShellConfiguration) (*Shell, error) {
-	ethClient, ethClientErr := ethclient.Dial(shellConfiguration.EthNodeUrl)
-	if ethClientErr != nil {
-		return nil, ethClientErr
+	ethClient, err := ethclient.Dial(shellConfiguration.EthNodeUrl)
+	if err != nil {
+		return nil, err
 	}
 
 	address := common.HexToAddress(shellConfiguration.ContractAddress)
-	contractInstance, contractErr := contract.NewContract(address, ethClient)
-	if contractErr != nil {
-		return nil, contractErr
+	contractInstance, err := contract.NewContract(address, ethClient)
+	if err != nil {
+		return nil, err
 	}
 
 	ethShell := Shell{
@@ -78,28 +78,28 @@ func (s *Shell) SubscribeToEvents(ctx context.Context) (ethereum.Subscription, c
 }
 
 func (s *Shell) GetTopics(ctx context.Context) ([]string, error) {
-	privateKey, pkErr := crypto.HexToECDSA(s.privateKey)
-	if pkErr != nil {
-		return nil, pkErr
+	privateKey, err := crypto.HexToECDSA(s.privateKey)
+	if err != nil {
+		return nil, err
 	}
 
-	fromAddress, fromAddressErr := deriveFromAddress(privateKey)
-	if fromAddressErr != nil {
-		return nil, fromAddressErr
+	fromAddress, err := deriveFromAddress(privateKey)
+	if err != nil {
+		return nil, err
 	}
 
-	topics, getTopicsErr := s.contractInstance.GetTopics(nil, fromAddress)
-	if getTopicsErr != nil {
-		return nil, getTopicsErr
+	topics, err := s.contractInstance.GetTopics(nil, fromAddress)
+	if err != nil {
+		return nil, err
 	}
 
 	return topics, nil
 }
 
 func (s *Shell) GetEvents(topic string, fromDepth uint64) ([]EventLogEvent, error) {
-	events, eventsErr := s.contractInstance.GetEvents(nil, topic)
-	if eventsErr != nil {
-		return nil, eventsErr
+	events, err := s.contractInstance.GetEvents(nil, topic)
+	if err != nil {
+		return nil, err
 	}
 	formattedEvents := []EventLogEvent{}
 	for index, e := range events {
@@ -131,36 +131,36 @@ func (s *Shell) PublishEvent(
 	newAccounts []string,
 ) (*types.Transaction, common.Address, error) {
 
-	txOptions, from, txOptionsErr := s.deriveTransactionOpts(ctx)
-	if txOptionsErr != nil {
-		return nil, common.Address{}, txOptionsErr
+	txOptions, from, err := s.deriveTransactionOpts(ctx)
+	if err != nil {
+		return nil, common.Address{}, err
 	}
 
 	newAccountAddresses := []common.Address{}
 	for _, newAccount := range newAccounts {
 		newAccountAddresses = append(newAccountAddresses, common.HexToAddress(newAccount))
 	}
-	tx, txErr := s.contractInstance.PublishEvent(txOptions, topic, cid, newAccountAddresses)
-	if txErr != nil {
-		return nil, common.Address{}, txErr
+	tx, err := s.contractInstance.PublishEvent(txOptions, topic, cid, newAccountAddresses)
+	if err != nil {
+		return nil, common.Address{}, err
 	}
 
 	return tx, from, nil
 }
 
 func (s *Shell) UnpackLog(ctx context.Context, log types.Log) (EventLogEvent, error) {
-	rawEvent, unpackErr := contract.UnpackLog(log)
-	if unpackErr != nil {
-		return EventLogEvent{}, unpackErr
+	rawEvent, err := contract.UnpackLog(log)
+	if err != nil {
+		return EventLogEvent{}, err
 	}
 
-	emitter, getEmitterErr := s.GetTxSender(ctx, log.TxHash)
-	if getEmitterErr != nil {
-		return EventLogEvent{}, getEmitterErr
+	emitter, err := s.GetTxSender(ctx, log.TxHash)
+	if err != nil {
+		return EventLogEvent{}, err
 	}
-	header, blockHeaderErr := s.ethClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
-	if blockHeaderErr != nil {
-		return EventLogEvent{}, blockHeaderErr
+	header, err := s.ethClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	if err != nil {
+		return EventLogEvent{}, err
 	}
 
 	newAccounts := []string{}
@@ -196,23 +196,23 @@ func deriveFromAddress(privateKey *ecdsa.PrivateKey) (common.Address, error) {
 }
 
 func (s *Shell) deriveTransactionOpts(ctx context.Context) (*bind.TransactOpts, common.Address, error) {
-	privateKey, pkErr := crypto.HexToECDSA(s.privateKey)
-	if pkErr != nil {
-		return nil, common.Address{}, pkErr
+	privateKey, err := crypto.HexToECDSA(s.privateKey)
+	if err != nil {
+		return nil, common.Address{}, err
 	}
 
-	fromAddress, fromAddressErr := deriveFromAddress(privateKey)
-	if fromAddressErr != nil {
-		return nil, common.Address{}, fromAddressErr
+	fromAddress, err := deriveFromAddress(privateKey)
+	if err != nil {
+		return nil, common.Address{}, err
 	}
 
-	nonce, nonceErr := s.ethClient.PendingNonceAt(ctx, fromAddress)
-	if nonceErr != nil {
-		return nil, common.Address{}, nonceErr
+	nonce, err := s.ethClient.PendingNonceAt(ctx, fromAddress)
+	if err != nil {
+		return nil, common.Address{}, err
 	}
-	gasPrice, gasErr := s.ethClient.SuggestGasPrice(ctx)
-	if gasErr != nil {
-		return nil, common.Address{}, gasErr
+	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, common.Address{}, err
 	}
 
 	auth := bind.NewKeyedTransactor(privateKey)
@@ -227,19 +227,19 @@ func (s *Shell) deriveTransactionOpts(ctx context.Context) (*bind.TransactOpts, 
 }
 
 func (s *Shell) GetTxSender(ctx context.Context, txHash common.Hash) (common.Address, error) {
-	tx, _, txErr := s.ethClient.TransactionByHash(ctx, txHash)
-	if txErr != nil {
-		return common.Address{}, txErr
+	tx, _, err := s.ethClient.TransactionByHash(ctx, txHash)
+	if err != nil {
+		return common.Address{}, err
 	}
 
-	chainID, chainIDErr := s.ethClient.NetworkID(ctx)
-	if chainIDErr != nil {
-		return common.Address{}, chainIDErr
+	chainID, err := s.ethClient.NetworkID(ctx)
+	if err != nil {
+		return common.Address{}, err
 	}
 
-	msg, msgErr := tx.AsMessage(types.NewEIP155Signer(chainID), nil)
-	if msgErr != nil {
-		return common.Address{}, msgErr
+	msg, err := tx.AsMessage(types.NewEIP155Signer(chainID), nil)
+	if err != nil {
+		return common.Address{}, err
 	}
 
 	return msg.From(), nil

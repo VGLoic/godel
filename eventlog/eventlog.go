@@ -32,15 +32,15 @@ func NewEventLog(eventLogConfiguration EventLogConfiguration) (*EventLog, error)
 	)
 
 	var db *gorm.DB
-	var dbErr error
+	var err error
 	connectionAttemptCount := 0
 	shouldOpenConnection := true
 
 	for shouldOpenConnection {
-		db, dbErr = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
-		if dbErr != nil {
-			fmt.Println(fmt.Errorf("Error in DB connection: %s \n", dbErr))
+		if err != nil {
+			fmt.Println(fmt.Errorf("Error in DB connection: %s \n", err))
 			connectionAttemptCount += 1
 			time.Sleep(1 * time.Second)
 			shouldOpenConnection = connectionAttemptCount < 6
@@ -50,8 +50,8 @@ func NewEventLog(eventLogConfiguration EventLogConfiguration) (*EventLog, error)
 
 	}
 
-	if dbErr != nil {
-		return nil, dbErr
+	if err != nil {
+		return nil, err
 	}
 
 	eventLog := EventLog{db: db}

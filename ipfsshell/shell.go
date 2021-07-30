@@ -59,25 +59,25 @@ func (t authTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func (s *Shell) GetBusinessEvent(cid string) (BusinessEvent, error) {
 	businessEvent := BusinessEvent{}
-	errGet := s.goIpfsShell.DagGet(cid, &businessEvent)
-	if errGet != nil {
-		return businessEvent, errGet
+	err := s.goIpfsShell.DagGet(cid, &businessEvent)
+	if err != nil {
+		return businessEvent, err
 	}
 	return businessEvent, nil
 }
 
 func (s *Shell) PublishBusinessEvent(event BusinessEvent) (string, error) {
-	marshalledEvent, marshalErr := json.Marshal(event)
-	if marshalErr != nil {
-		return "", marshalErr
+	marshalledEvent, err := json.Marshal(event)
+	if err != nil {
+		return "", err
 	}
-	cid, errIpfsPut := s.goIpfsShell.DagPut(marshalledEvent, "json", "cbor")
-	if errIpfsPut != nil {
-		return "", errIpfsPut
+	cid, err := s.goIpfsShell.DagPut(marshalledEvent, "json", "cbor")
+	if err != nil {
+		return "", err
 	}
-	pinErr := s.goIpfsShell.Pin(cid)
-	if pinErr != nil {
-		return "", pinErr
+	err = s.goIpfsShell.Pin(cid)
+	if err != nil {
+		return "", err
 	}
 
 	return cid, nil

@@ -73,7 +73,6 @@ func TestMain(m *testing.M) {
 		PrivateKey:      privateKeyHex,
 	}
 	godelNode, err := node.NewGodelNode(
-		ctx,
 		eventLogConfig,
 		ipfsShellConfig,
 		ethShellConfig,
@@ -93,6 +92,7 @@ func TestMain(m *testing.M) {
 
 	exitCode := m.Run()
 
+	godelNode.Stop()
 	cli.StopContainers(ctx)
 
 	os.Exit(exitCode)

@@ -14,16 +14,17 @@ import (
 )
 
 type Godel struct {
-	b *backend.Backend
+	b      *backend.Backend
+	cancel context.CancelFunc
 }
 
 func NewGodelNode(
-	ctx context.Context,
 	eventLogConfig eventlog.EventLogConfiguration,
 	ipfsShellConfig ipfsshell.ShellConfiguration,
 	ethShellConfig ethshell.ShellConfiguration,
 	accountAddress string,
 ) (*Godel, error) {
+
 	eventLog, err := eventlog.NewEventLog(eventLogConfig)
 	if err != nil {
 		return nil, err
@@ -46,7 +47,10 @@ func NewGodelNode(
 	return &godel, nil
 }
 
-func (g *Godel) Start(ctx context.Context) error {
+func (g *Godel) Start(parentCtx context.Context) error {
+
+	ctx, cancel := context.WithCancel(parentCtx)
+	g.cancel = cancel
 
 	go g.b.MakeLocalDataAvailable(ctx)
 
@@ -60,6 +64,11 @@ func (g *Godel) Start(ctx context.Context) error {
 		return err
 	}
 
+	return nil
+}
+
+func (g *Godel) Stop() error {
+	g.cancel()
 	return nil
 }
 

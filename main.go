@@ -41,7 +41,6 @@ func main() {
 		PrivateKey:      viper.GetString("PRIVATE_KEY"),
 	}
 	godelNode, err := node.NewGodelNode(
-		ctx,
 		eventLogConfig,
 		ipfsShellConfig,
 		ethShellConfig,
@@ -53,6 +52,7 @@ func main() {
 
 	fmt.Println("-- Starting Godel Node --")
 	err = godelNode.Start(ctx)
+	defer godelNode.Stop()
 	if err != nil {
 		panic(fmt.Errorf("Fatal error godel node start: %s \n", err))
 	}

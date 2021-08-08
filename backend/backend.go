@@ -208,6 +208,7 @@ func (b *Backend) SubscribeToEvents(ctx context.Context) error {
 			case <-ctx.Done():
 				close(logs)
 				sub.Unsubscribe()
+				fmt.Println("Closing peacefully also")
 				return
 			}
 		}

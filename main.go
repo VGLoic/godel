@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/VGLoic/godel/config"
 	"github.com/VGLoic/godel/ethshell"
@@ -56,7 +55,4 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("Fatal error godel node start: %s \n", err))
 	}
-
-	fmt.Println("-- Serving the API --")
-	log.Fatal(godelNode.ServeApi())
 }

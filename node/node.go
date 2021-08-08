@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -64,7 +65,7 @@ func (g *Godel) Start(parentCtx context.Context) error {
 		return err
 	}
 
-	return nil
+	return g.serveApi(ctx)
 }
 
 func (g *Godel) Stop() error {
@@ -72,7 +73,7 @@ func (g *Godel) Stop() error {
 	return nil
 }
 
-func (g *Godel) ServeApi() error {
+func (g *Godel) serveApi(ctx context.Context) error {
 	api := api.NewApi(g.b)
 	rpc.Register(api)
 	rpc.HandleHTTP()
@@ -80,5 +81,20 @@ func (g *Godel) ServeApi() error {
 	if e != nil {
 		return e
 	}
-	return http.Serve(l, nil)
+	errChan := make(chan error)
+	go func() {
+		err := http.Serve(l, nil)
+		errChan <- err
+	}()
+	select {
+	case <-ctx.Done():
+		err := l.Close()
+		if err != nil {
+			return err
+		}
+		fmt.Println("Closing peacefully")
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }

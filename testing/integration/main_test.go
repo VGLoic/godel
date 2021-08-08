@@ -81,14 +81,12 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = godelNode.Start(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	go func() {
-		log.Fatal(godelNode.ServeApi())
+		log.Fatal(godelNode.Start(ctx))
 	}()
+
+	time.Sleep(3 * time.Second)
 
 	exitCode := m.Run()
 

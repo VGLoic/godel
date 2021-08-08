@@ -83,7 +83,10 @@ func TestMain(m *testing.M) {
 	}
 
 	go func() {
-		log.Fatal(godelNode.Start(ctx))
+		err := godelNode.Start(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	time.Sleep(3 * time.Second)

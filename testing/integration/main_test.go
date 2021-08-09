@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"log"
 	"math/big"
+	"net/rpc"
 	"os"
 	"testing"
 	"time"
@@ -89,7 +90,10 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
-	time.Sleep(3 * time.Second)
+	err = waitForReadyness()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	exitCode := m.Run()
 
@@ -195,4 +199,36 @@ func setupContract(ctx context.Context, privateKeyHex string) (string, string, e
 		return "", "", err
 	}
 	return fromAddress.String(), address.String(), nil
+}
+
+func waitForReadyness() error {
+	err := withRetry(
+		func() error {
+			c, err := rpc.DialHTTP("tcp", "localhost:1234")
+			if err == nil {
+				c.Close()
+			}
+			return err
+		},
+		10,
+		1*time.Second,
+	)
+	return err
+}
+
+func withRetry(f func() error, maxRetry int, sleepingTime time.Duration) error {
+	retryCount := 0
+	isReady := false
+	var err error
+	for retryCount < maxRetry && !isReady {
+		err = f()
+		if err == nil {
+			isReady = true
+			break
+		}
+
+		retryCount += 1
+		time.Sleep(sleepingTime)
+	}
+	return err
 }

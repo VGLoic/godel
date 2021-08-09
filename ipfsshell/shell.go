@@ -24,10 +24,15 @@ type BusinessEvent struct {
 }
 
 func NewShell(shellConfiguration ShellConfiguration) (*Shell, error) {
-	internalShell := goIpfsShell.NewShellWithClient(
-		shellConfiguration.IpfsNodeUrl,
-		newClient(shellConfiguration.ProjectId, shellConfiguration.ProjectSecret),
-	)
+	var internalShell *goIpfsShell.Shell
+	if shellConfiguration.isInfuraConfigured() {
+		internalShell = goIpfsShell.NewShellWithClient(
+			shellConfiguration.IpfsNodeUrl,
+			newClient(shellConfiguration.ProjectId, shellConfiguration.ProjectSecret),
+		)
+	} else {
+		internalShell = goIpfsShell.NewShell(shellConfiguration.IpfsNodeUrl)
+	}
 	ipfsShell := Shell{
 		goIpfsShell: internalShell,
 	}
@@ -85,4 +90,8 @@ func (s *Shell) PublishBusinessEvent(event BusinessEvent) (string, error) {
 
 func (s *Shell) PinBusinessEventCid(cid string) error {
 	return s.goIpfsShell.Pin(cid)
+}
+
+func (config ShellConfiguration) isInfuraConfigured() bool {
+	return config.ProjectId != "" && config.ProjectSecret != ""
 }

@@ -40,21 +40,52 @@ func TestMain(m *testing.M) {
 	}
 
 	mnemonic := viper.GetString("MNEMONIC")
+	privateKeyHex := viper.GetString("PRIVATE_KEY")
 
-	_, err = createPostgresContainer(ctx, cli)
+	godelNode, err := setupTests(
+		ctx,
+		cli,
+		mnemonic,
+		privateKeyHex,
+	)
 	if err != nil {
+		cli.StopContainers(ctx)
 		log.Fatal(err)
+	}
+
+	exitCode := m.Run()
+
+	godelNode.Stop()
+
+	cli.StopContainers(ctx)
+
+	os.Exit(exitCode)
+}
+
+func setupTests(
+	ctx context.Context,
+	cli *dockerclient.DockerCli,
+	mnemonic string,
+	privateKeyHex string,
+) (*node.Godel, error) {
+	_, err := createPostgresContainer(ctx, cli)
+	if err != nil {
+		return nil, err
 	}
 
 	_, err = createGanacheContainer(ctx, cli, mnemonic)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	privateKeyHex := viper.GetString("PRIVATE_KEY")
+	_, err = createIpfsContainer(ctx, cli)
+	if err != nil {
+		return nil, err
+	}
+
 	address, contractAddress, err := setupContract(ctx, privateKeyHex)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	eventLogConfig := eventlog.EventLogConfiguration{
@@ -65,9 +96,7 @@ func TestMain(m *testing.M) {
 		PostgresPort:     "5432",
 	}
 	ipfsShellConfig := ipfsshell.ShellConfiguration{
-		IpfsNodeUrl:   viper.GetString("IPFS_DAEMON_URL"),
-		ProjectId:     viper.GetString("IPFS_PROJECT_ID"),
-		ProjectSecret: viper.GetString("IPFS_PROJECT_SECRET"),
+		IpfsNodeUrl: "http://localhost:5001",
 	}
 	ethShellConfig := ethshell.ShellConfiguration{
 		EthNodeUrl:      "ws://localhost:7545",
@@ -81,7 +110,7 @@ func TestMain(m *testing.M) {
 		address,
 	)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	go func() {
@@ -93,15 +122,10 @@ func TestMain(m *testing.M) {
 
 	_, err = waitForReadyness()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	exitCode := m.Run()
-
-	godelNode.Stop()
-	cli.StopContainers(ctx)
-
-	os.Exit(exitCode)
+	return godelNode, nil
 }
 
 func createPostgresContainer(ctx context.Context, cli *dockerclient.DockerCli) (container.ContainerCreateCreatedBody, error) {
@@ -149,6 +173,26 @@ func createGanacheContainer(ctx context.Context, cli *dockerclient.DockerCli, mn
 		Cmd:   strslice.StrSlice{"-m " + mnemonic},
 	}
 	return cli.CreateContainer(ctx, &containerConfig, &hostConfig, "ganache")
+}
+
+func createIpfsContainer(ctx context.Context, cli *dockerclient.DockerCli) (container.ContainerCreateCreatedBody, error) {
+	hostBinding := nat.PortBinding{
+		HostIP:   "0.0.0.0",
+		HostPort: "5001",
+	}
+
+	containerPort, err := nat.NewPort("tcp", "5001")
+	if err != nil {
+		return container.ContainerCreateCreatedBody{}, err
+	}
+	portBinding := nat.PortMap{containerPort: []nat.PortBinding{hostBinding}}
+	hostConfig := container.HostConfig{
+		PortBindings: portBinding,
+	}
+	containerConfig := container.Config{
+		Image: "ipfs/go-ipfs",
+	}
+	return cli.CreateContainer(ctx, &containerConfig, &hostConfig, "ipfs")
 }
 
 func setupContract(ctx context.Context, privateKeyHex string) (string, string, error) {

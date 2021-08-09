@@ -5,8 +5,10 @@ package integration
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"log"
 	"math/big"
+	"net/rpc"
 	"os"
 	"testing"
 	"time"
@@ -73,7 +75,6 @@ func TestMain(m *testing.M) {
 		PrivateKey:      privateKeyHex,
 	}
 	godelNode, err := node.NewGodelNode(
-		ctx,
 		eventLogConfig,
 		ipfsShellConfig,
 		ethShellConfig,
@@ -82,17 +83,22 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = godelNode.Start(ctx)
+
+	go func() {
+		err := godelNode.Start(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	_, err = waitForReadyness()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	go func() {
-		log.Fatal(godelNode.ServeApi())
-	}()
-
 	exitCode := m.Run()
 
+	godelNode.Stop()
 	cli.StopContainers(ctx)
 
 	os.Exit(exitCode)
@@ -146,25 +152,27 @@ func createGanacheContainer(ctx context.Context, cli *dockerclient.DockerCli, mn
 }
 
 func setupContract(ctx context.Context, privateKeyHex string) (string, string, error) {
-	retryCount := 0
-	isConnected := false
-	var client *ethclient.Client
-	var err error
-	for retryCount < 10 && !isConnected {
-		client, err = ethclient.Dial("http://localhost:7545")
-		if err == nil {
-			_, err = client.BlockNumber(ctx)
+	c, err := withRetry(
+		func() (interface{}, error) {
+			client, err := ethclient.Dial("http://localhost:7545")
 			if err == nil {
-				isConnected = true
-				break
+				_, err = client.BlockNumber(ctx)
+				if err == nil {
+					return client, nil
+				}
+				return nil, err
 			}
-		}
-
-		retryCount += 1
-		time.Sleep(1 * time.Second)
-	}
+			return nil, err
+		},
+		10,
+		1*time.Second,
+	)
 	if err != nil {
 		return "", "", err
+	}
+	client, ok := c.(*ethclient.Client)
+	if !ok {
+		return "", "", errors.New("Invalid type conversion")
 	}
 
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
@@ -194,4 +202,37 @@ func setupContract(ctx context.Context, privateKeyHex string) (string, string, e
 		return "", "", err
 	}
 	return fromAddress.String(), address.String(), nil
+}
+
+func waitForReadyness() (*rpc.Client, error) {
+	c, err := withRetry(
+		func() (interface{}, error) {
+			c, err := rpc.DialHTTP("tcp", "localhost:1234")
+			if err == nil {
+				c.Close()
+			}
+			return c, err
+		},
+		10,
+		1*time.Second,
+	)
+	return c.(*rpc.Client), err
+}
+
+func withRetry(f func() (interface{}, error), maxRetry int, sleepingTime time.Duration) (interface{}, error) {
+	retryCount := 0
+	isReady := false
+	var err error
+	var result interface{}
+	for retryCount < maxRetry && !isReady {
+		result, err = f()
+		if err == nil {
+			isReady = true
+			break
+		}
+
+		retryCount += 1
+		time.Sleep(sleepingTime)
+	}
+	return result, err
 }

@@ -14,16 +14,17 @@ import (
 )
 
 type Godel struct {
-	b *backend.Backend
+	b      *backend.Backend
+	cancel context.CancelFunc
 }
 
 func NewGodelNode(
-	ctx context.Context,
 	eventLogConfig eventlog.EventLogConfiguration,
 	ipfsShellConfig ipfsshell.ShellConfiguration,
 	ethShellConfig ethshell.ShellConfiguration,
 	accountAddress string,
 ) (*Godel, error) {
+
 	eventLog, err := eventlog.NewEventLog(eventLogConfig)
 	if err != nil {
 		return nil, err
@@ -46,7 +47,10 @@ func NewGodelNode(
 	return &godel, nil
 }
 
-func (g *Godel) Start(ctx context.Context) error {
+func (g *Godel) Start(parentCtx context.Context) error {
+
+	ctx, cancel := context.WithCancel(parentCtx)
+	g.cancel = cancel
 
 	go g.b.MakeLocalDataAvailable(ctx)
 
@@ -60,10 +64,15 @@ func (g *Godel) Start(ctx context.Context) error {
 		return err
 	}
 
+	return g.serveApi(ctx)
+}
+
+func (g *Godel) Stop() error {
+	g.cancel()
 	return nil
 }
 
-func (g *Godel) ServeApi() error {
+func (g *Godel) serveApi(ctx context.Context) error {
 	api := api.NewApi(g.b)
 	rpc.Register(api)
 	rpc.HandleHTTP()
@@ -71,5 +80,19 @@ func (g *Godel) ServeApi() error {
 	if e != nil {
 		return e
 	}
-	return http.Serve(l, nil)
+	errChan := make(chan error)
+	go func() {
+		err := http.Serve(l, nil)
+		errChan <- err
+	}()
+	select {
+	case <-ctx.Done():
+		err := l.Close()
+		if err != nil {
+			return err
+		}
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }

@@ -5,6 +5,7 @@ package integration
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"log"
 	"math/big"
 	"net/rpc"
@@ -90,7 +91,7 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
-	err = waitForReadyness()
+	_, err = waitForReadyness()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -151,21 +152,27 @@ func createGanacheContainer(ctx context.Context, cli *dockerclient.DockerCli, mn
 }
 
 func setupContract(ctx context.Context, privateKeyHex string) (string, string, error) {
-	var client *ethclient.Client
-	err := withRetry(
-		func() error {
+	c, err := withRetry(
+		func() (interface{}, error) {
 			client, err := ethclient.Dial("http://localhost:7545")
 			if err == nil {
 				_, err = client.BlockNumber(ctx)
-				return err
+				if err == nil {
+					return client, nil
+				}
+				return nil, err
 			}
-			return err
+			return nil, err
 		},
 		10,
 		1*time.Second,
 	)
 	if err != nil {
 		return "", "", err
+	}
+	client, ok := c.(*ethclient.Client)
+	if !ok {
+		return "", "", errors.New("Invalid type conversion")
 	}
 
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
@@ -197,27 +204,28 @@ func setupContract(ctx context.Context, privateKeyHex string) (string, string, e
 	return fromAddress.String(), address.String(), nil
 }
 
-func waitForReadyness() error {
-	err := withRetry(
-		func() error {
+func waitForReadyness() (*rpc.Client, error) {
+	c, err := withRetry(
+		func() (interface{}, error) {
 			c, err := rpc.DialHTTP("tcp", "localhost:1234")
 			if err == nil {
 				c.Close()
 			}
-			return err
+			return c, err
 		},
 		10,
 		1*time.Second,
 	)
-	return err
+	return c.(*rpc.Client), err
 }
 
-func withRetry(f func() error, maxRetry int, sleepingTime time.Duration) error {
+func withRetry(f func() (interface{}, error), maxRetry int, sleepingTime time.Duration) (interface{}, error) {
 	retryCount := 0
 	isReady := false
 	var err error
+	var result interface{}
 	for retryCount < maxRetry && !isReady {
-		err = f()
+		result, err = f()
 		if err == nil {
 			isReady = true
 			break
@@ -226,5 +234,5 @@ func withRetry(f func() error, maxRetry int, sleepingTime time.Duration) error {
 		retryCount += 1
 		time.Sleep(sleepingTime)
 	}
-	return err
+	return result, err
 }

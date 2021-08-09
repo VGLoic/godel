@@ -151,23 +151,19 @@ func createGanacheContainer(ctx context.Context, cli *dockerclient.DockerCli, mn
 }
 
 func setupContract(ctx context.Context, privateKeyHex string) (string, string, error) {
-	retryCount := 0
-	isConnected := false
 	var client *ethclient.Client
-	var err error
-	for retryCount < 10 && !isConnected {
-		client, err = ethclient.Dial("http://localhost:7545")
-		if err == nil {
-			_, err = client.BlockNumber(ctx)
+	err := withRetry(
+		func() error {
+			client, err := ethclient.Dial("http://localhost:7545")
 			if err == nil {
-				isConnected = true
-				break
+				_, err = client.BlockNumber(ctx)
+				return err
 			}
-		}
-
-		retryCount += 1
-		time.Sleep(1 * time.Second)
-	}
+			return err
+		},
+		10,
+		1*time.Second,
+	)
 	if err != nil {
 		return "", "", err
 	}

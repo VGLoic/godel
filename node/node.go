@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -92,7 +91,6 @@ func (g *Godel) serveApi(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("Closing peacefully")
 		return nil
 	case err := <-errChan:
 		return err
